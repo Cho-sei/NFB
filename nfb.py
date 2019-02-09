@@ -22,7 +22,7 @@ class myWxPlot(wx.Panel):
         self.canvas = FigureCanvasWxAgg( self, -1, self.figure )
         self.canvas.SetBackgroundColour( wx.Colour( 100,255,255 ) )
 
-        self.buffer = [] * 500
+        self.buffer = 0
 
         self.RecieveData()
         self._SetSize()
