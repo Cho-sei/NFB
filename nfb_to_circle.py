@@ -2,10 +2,10 @@
 
 from pylsl import StreamInlet, resolve_stream, resolve_byprop,\
  	proc_clocksync, proc_dejitter, proc_monotonize
+from psychopy import visual, event, core
 from collections import deque
-import matplotlib.pyplot as plt
 import numpy as np
-import msvcrt
+import threading
 
 channels =  {
 	'F7':0, 'Fp1':1, 'Fp2':2, 'F8':3, 'F3':4, 'Fz':5, 'F4':6, 'C3':7,
@@ -14,9 +14,10 @@ channels =  {
 	'Packet Counter':23, 'TRIGGER':24
 	}
 #parameter
-ROI_elec = 'Fp1'
+ROI_elec = 'O1'
 ROI = channels[ROI_elec]	#見たい電極
 N = 1024
+ex_duration = 5			#秒
 
 #データ取得と更新
 class BetaInlet(object):
@@ -42,6 +43,7 @@ class BetaInlet(object):
 def fft():
     window = np.hamming(N)
     windowedData = window * data_buffer
+
     # データのパラメータ
     dt = 1 / sampling_rate          # サンプリング間隔
     t = np.arange(0, N*dt, dt) # 時間軸
@@ -53,25 +55,6 @@ def fft():
 
     return freq, Amp
 
-#プロットする関数
-def plot():
-    # get a new sample (you can also omit the timestamp part if you're not
-    # interested in it)
-    sample, timestamp = betaIn.update()
-    data_buffer.extend(sample.T[ROI])#-m
-    f.set_data(x, data_buffer)
-
-    freq, Amp = fft()
-    F.set_data(freq, Amp)
-    plt.pause(1 / sampling_rate)
-
-#オフセット除去（平均を引いただけ）
-def offset():
-	for i in range(len(data_buffer)):
-		data_buffer[i] = data_buffer[i] - m
-
-	return data_buffer
-
 if __name__ == '__main__':
 
 	betaIn = BetaInlet()
@@ -80,61 +63,36 @@ if __name__ == '__main__':
 	data_buffer = deque([], maxlen=N)	#ストリーミングデータ
 
 	#data_bufferの初期化
-	while len(data_buffer) < N:	
+	while len(data_buffer) < sampling_rate:	
 		sample, timestamp = betaIn.update()
 		if len(sample) != 0:
 			data_buffer.extend(sample.T[ROI])
 
 	m = np.average(data_buffer)
 
-	#data_buffer = offset()
+	#psychopy初期化
+	win = visual.Window(
+		size=(1920, 1080), units='pix', fullscr=True, allowGUI=False)
 
-	#初期値グラフ表示
-	freq, Amp = fft()
-	x = np.arange(0, len(data_buffer), 1)
-	plt.figure(figsize=(10,6))
-	plt.subplot(211)
-	f, = plt.plot(x, data_buffer)
-	plt.title(ROI_elec)
-	plt.ylim(m - (m - min(data_buffer)) * 10, m + (max(data_buffer) - m) * 10)
-	plt.subplot(212)
-	F, = plt.plot(freq, Amp)
-	plt.xlim(1, 30)
-	plt.ylim(0, np.average(Amp)/2)
-	
-	#無限プロット
-	while True:
-		plot()
-	
+	FB_circle = visual.Circle(
+		win, edges=32, fillColor='green', lineColor='green')
 
-"""
--------------------------------------------------------------
-全チャネル表示
--------------------------------------------------------------
+	clock = core.Clock()
 
-data_buffer = [['' for i in range(500)] for j in range(25)]
-# create a new inlet to read from the stream
-inlet = StreamInlet(streams[0])
+	t_start = clock.getTime()
+	t_duration = clock.getTime() - t_start
 
-for i in range(500):
-	sample, timestamp = inlet.pull_sample()
-	for j in range(25):
-		data_buffer[j][i] = (sample[j])
+	while t_duration < ex_duration:
+		sample, timestamp = betaIn.update()
+		data_buffer.extend(sample.T[ROI])
+		freq, Amp = fft()
+		alpha = Amp[8:13]
+		circle_radius = np.average(alpha)
+		FB_circle.setRadius(circle_radius * 0.01)
+		FB_circle.setOpacity(0.5)
+		FB_circle.draw()
 
+		t_duration = clock.getTime() - t_start
 
-x = np.arange(0, 500, 1)
-plt.figure(figsize=(10,6))
-for i in range(25):
-	plt.plot(x, data_buffer[i])
-#plt.ylim(0, 700000)
+		win.flip()
 
-while True:
-    # get a new sample (you can also omit the timestamp part if you're not
-    # interested in it)
-    sample, timestamp = inlet.pull_sample()
-    for i in range(25):
-    	data_buffer[i].pop(0)
-    	data_buffer[i].append(sample[i])
-    	plt.plot(x, data_buffer[i])
-    plt.pause(0.001)
-"""
