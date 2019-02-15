@@ -17,7 +17,7 @@ channels =  {
 ROI_elec = 'O1'
 ROI = channels[ROI_elec]	#見たい電極
 N = 1024
-ex_duration = 5			#秒
+ex_duration = 50			#秒
 
 #データ取得と更新
 class BetaInlet(object):
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 		freq, Amp = fft()
 		alpha = Amp[8:13]
 		circle_radius = np.average(alpha)
-		FB_circle.setRadius(circle_radius * 0.01)
+		FB_circle.setRadius(circle_radius * 0.1)
 		FB_circle.setOpacity(0.5)
 		FB_circle.draw()
 

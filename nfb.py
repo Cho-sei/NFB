@@ -14,8 +14,9 @@ channels =  {
 	'Packet Counter':23, 'TRIGGER':24
 	}
 #parameter
-ROI_elec = 'Fp1'
-ROI = channels[ROI_elec]	#見たい電極
+#ROI_elec = 'O1'
+#ROI = channels[ROI_elec]	#見たい電極
+ROI = 0
 N = 1024
 
 #データ取得と更新
@@ -28,9 +29,18 @@ class BetaInlet(object):
         proc_flags = proc_clocksync | proc_dejitter | proc_monotonize
         self.inlet = StreamInlet(streams[0], processing_flags=proc_flags)
 
+        stream_info = self.inlet.info()
+        stream_xml = stream_info.desc()
+        chans_xml = stream_xml.child("channels")
+        self.channel_list = []
+        ch = chans_xml.child("channel")
+        while ch.name() == "channel":
+            self.channel_list.append(ch)
+            ch = ch.next_sibling("channel")
+
     def update(self):
         max_samps = 3276*2
-        data = np.nan * np.ones((max_samps, 25), dtype=np.float32)
+        data = np.nan * np.ones((max_samps, len(self.channel_list)), dtype=np.float32)
         _, timestamps = self.inlet.pull_chunk(max_samples=max_samps, dest_obj=data)
         data = data[:len(timestamps), :]
         return data, np.asarray(timestamps)
@@ -60,6 +70,7 @@ def plot():
     sample, timestamp = betaIn.update()
     data_buffer.extend(sample.T[ROI])#-m
     f.set_data(x, data_buffer)
+    plt.ylim(m - (m - min(data_buffer)) * 10, m + (max(data_buffer) - m) * 10)
 
     freq, Amp = fft()
     F.set_data(freq, Amp)
@@ -86,7 +97,7 @@ if __name__ == '__main__':
 			data_buffer.extend(sample.T[ROI])
 
 	m = np.average(data_buffer)
-
+    
 	#data_buffer = offset()
 
 	#初期値グラフ表示
@@ -95,11 +106,11 @@ if __name__ == '__main__':
 	plt.figure(figsize=(10,6))
 	plt.subplot(211)
 	f, = plt.plot(x, data_buffer)
-	plt.title(ROI_elec)
+	#plt.title(ROI_elec)
 	plt.ylim(m - (m - min(data_buffer)) * 10, m + (max(data_buffer) - m) * 10)
 	plt.subplot(212)
 	F, = plt.plot(freq, Amp)
-	plt.xlim(1, 30)
+	plt.xlim(0, 60)
 	plt.ylim(0, np.average(Amp)/2)
 	
 	#無限プロット
